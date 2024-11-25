@@ -1,0 +1,403 @@
+diff -up rsync-3.1.2/exclude.c.orig rsync-3.1.2/exclude.c
+--- rsync-3.1.2/exclude.c.orig	2018-09-27 17:06:15.413701320 -0300
++++ rsync-3.1.2/exclude.c	2018-09-27 17:06:19.259579122 -0300
+@@ -44,6 +44,8 @@ filter_rule_list filter_list = { .debug_
+ filter_rule_list cvs_filter_list = { .debug_type = " [global CVS]" };
+ filter_rule_list daemon_filter_list = { .debug_type = " [daemon]" };
+ 
++int saw_xattr_filter = 0;
++
+ /* Need room enough for ":MODS " prefix plus some room to grow. */
+ #define MAX_RULE_PREFIX (16)
+ 
+@@ -622,7 +624,7 @@ void change_local_filter_dir(const char
+ 	filt_array[cur_depth] = push_local_filters(dname, dlen);
+ }
+ 
+-static int rule_matches(const char *fname, filter_rule *ex, int name_is_dir)
++static int rule_matches(const char *fname, filter_rule *ex, int name_flags)
+ {
+ 	int slash_handling, str_cnt = 0, anchored_match = 0;
+ 	int ret_match = ex->rflags & FILTRULE_NEGATE ? 0 : 1;
+@@ -633,6 +635,9 @@ static int rule_matches(const char *fnam
+ 	if (!*name)
+ 		return 0;
+ 
++	if (!(name_flags & NAME_IS_XATTR) ^ !(ex->rflags & FILTRULE_XATTR))
++		return 0;
++
+ 	if (!ex->u.slash_cnt && !(ex->rflags & FILTRULE_WILD2)) {
+ 		/* If the pattern does not have any slashes AND it does
+ 		 * not have a "**" (which could match a slash), then we
+@@ -650,7 +655,7 @@ static int rule_matches(const char *fnam
+ 		strings[str_cnt++] = "/";
+ 	}
+ 	strings[str_cnt++] = name;
+-	if (name_is_dir) {
++	if (name_flags & NAME_IS_DIR) {
+ 		/* Allow a trailing "/"+"***" to match the directory. */
+ 		if (ex->rflags & FILTRULE_WILD3_SUFFIX)
+ 			strings[str_cnt++] = "/";
+@@ -702,7 +707,7 @@ static int rule_matches(const char *fnam
+ 
+ static void report_filter_result(enum logcode code, char const *name,
+ 				 filter_rule const *ent,
+-				 int name_is_dir, const char *type)
++				 int name_flags, const char *type)
+ {
+ 	/* If a trailing slash is present to match only directories,
+ 	 * then it is stripped out by add_rule().  So as a special
+@@ -712,17 +717,40 @@ static void report_filter_result(enum lo
+ 		static char *actions[2][2]
+ 		    = { {"show", "hid"}, {"risk", "protect"} };
+ 		const char *w = who_am_i();
++		const char *t = name_flags & NAME_IS_XATTR ? "xattr"
++			      : name_flags & NAME_IS_DIR ? "directory"
++			      : "file";
+ 		rprintf(code, "[%s] %sing %s %s because of pattern %s%s%s\n",
+ 		    w, actions[*w!='s'][!(ent->rflags & FILTRULE_INCLUDE)],
+-		    name_is_dir ? "directory" : "file", name, ent->pattern,
++		    t, name, ent->pattern,
+ 		    ent->rflags & FILTRULE_DIRECTORY ? "/" : "", type);
+ 	}
+ }
+ 
++/* This function is used to check if a file should be included/excluded
++ * from the list of files based on its name and type etc.  The value of
++ * filter_level is set to either SERVER_FILTERS or ALL_FILTERS. */
++int name_is_excluded(const char *fname, int name_flags, int filter_level)
++{
++	if (daemon_filter_list.head && check_filter(&daemon_filter_list, FLOG, fname, name_flags) < 0) {
++		if (!(name_flags & NAME_IS_XATTR))
++			errno = ENOENT;
++		return 1;
++	}
++
++	if (filter_level != ALL_FILTERS)
++		return 0;
++
++	if (filter_list.head && check_filter(&filter_list, FINFO, fname, name_flags) < 0)
++		return 1;
++
++	return 0;
++}
++
+ /* Return -1 if file "name" is defined to be excluded by the specified
+  * exclude list, 1 if it is included, and 0 if it was not matched. */
+ int check_filter(filter_rule_list *listp, enum logcode code,
+-		 const char *name, int name_is_dir)
++		 const char *name, int name_flags)
+ {
+ 	filter_rule *ent;
+ 
+@@ -730,22 +758,19 @@ int check_filter(filter_rule_list *listp
+ 		if (ignore_perishable && ent->rflags & FILTRULE_PERISHABLE)
+ 			continue;
+ 		if (ent->rflags & FILTRULE_PERDIR_MERGE) {
+-			int rc = check_filter(ent->u.mergelist, code, name,
+-					      name_is_dir);
++			int rc = check_filter(ent->u.mergelist, code, name, name_flags);
+ 			if (rc)
+ 				return rc;
+ 			continue;
+ 		}
+ 		if (ent->rflags & FILTRULE_CVS_IGNORE) {
+-			int rc = check_filter(&cvs_filter_list, code, name,
+-					      name_is_dir);
++			int rc = check_filter(&cvs_filter_list, code, name, name_flags);
+ 			if (rc)
+ 				return rc;
+ 			continue;
+ 		}
+-		if (rule_matches(name, ent, name_is_dir)) {
+-			report_filter_result(code, name, ent, name_is_dir,
+-					     listp->debug_type);
++		if (rule_matches(name, ent, name_flags)) {
++			report_filter_result(code, name, ent, name_flags, listp->debug_type);
+ 			return ent->rflags & FILTRULE_INCLUDE ? 1 : -1;
+ 		}
+ 	}
+@@ -970,6 +995,10 @@ static filter_rule *parse_rule_tok(const
+ 					goto invalid;
+ 				rule->rflags |= FILTRULE_WORD_SPLIT;
+ 				break;
++			case 'x':
++				rule->rflags |= FILTRULE_XATTR;
++				saw_xattr_filter = 1;
++				break;
+ 			}
+ 		}
+ 		if (*s)
+@@ -1286,6 +1286,8 @@ char *get_rule_prefix(filter_rule *rule, const char *pat, int for_xfer,
+ 	}
+ 	if (rule->rflags & FILTRULE_EXCLUDE_SELF)
+ 		*op++ = 'e';
++	if (rule->rflags & FILTRULE_XATTR)
++		*op++ = 'x';
+ 	if (rule->rflags & FILTRULE_SENDER_SIDE
+ 	    && (!for_xfer || protocol_version >= 29))
+ 		*op++ = 's';
+diff -up rsync-3.1.2/flist.c.orig rsync-3.1.2/flist.c
+--- rsync-3.1.2/flist.c.orig	2018-09-27 17:06:15.420701098 -0300
++++ rsync-3.1.2/flist.c	2018-09-27 17:06:19.262579026 -0300
+@@ -237,16 +237,6 @@ int link_stat(const char *path, STRUCT_S
+ #endif
+ }
+ 
+-static inline int is_daemon_excluded(const char *fname, int is_dir)
+-{
+-	if (daemon_filter_list.head
+-	 && check_filter(&daemon_filter_list, FLOG, fname, is_dir) < 0) {
+-		errno = ENOENT;
+-		return 1;
+-	}
+-	return 0;
+-}
+-
+ static inline int path_is_daemon_excluded(char *path, int ignore_filename)
+ {
+ 	if (daemon_filter_list.head) {
+@@ -273,23 +263,10 @@ static inline int path_is_daemon_exclude
+ 	return 0;
+ }
+ 
+-/* This function is used to check if a file should be included/excluded
+- * from the list of files based on its name and type etc.  The value of
+- * filter_level is set to either SERVER_FILTERS or ALL_FILTERS. */
+-static int is_excluded(const char *fname, int is_dir, int filter_level)
++
++static inline int is_excluded(const char *fname, int is_dir, int filter_level)
+ {
+-#if 0 /* This currently never happens, so avoid a useless compare. */
+-	if (filter_level == NO_FILTERS)
+-		return 0;
+-#endif
+-	if (is_daemon_excluded(fname, is_dir))
+-		return 1;
+-	if (filter_level != ALL_FILTERS)
+-		return 0;
+-	if (filter_list.head
+-	    && check_filter(&filter_list, FINFO, fname, is_dir) < 0)
+-		return 1;
+-	return 0;
++	return name_is_excluded(fname, is_dir ? NAME_IS_DIR : NAME_IS_FILE, filter_level);
+ }
+ 
+ static void send_directory(int f, struct file_list *flist,
+@@ -2262,7 +2239,7 @@ struct file_list *send_file_list(int f,
+ 			memmove(fbuf, fn, len + 1);
+ 
+ 		if (link_stat(fbuf, &st, copy_dirlinks || name_type != NORMAL_NAME) != 0
+-		 || (name_type != DOTDIR_NAME && is_daemon_excluded(fbuf, S_ISDIR(st.st_mode)))
++		 || (name_type != DOTDIR_NAME && is_excluded(fbuf, S_ISDIR(st.st_mode) != 0, SERVER_FILTERS))
+ 		 || (relative_paths && path_is_daemon_excluded(fbuf, 1))) {
+ 			if (errno != ENOENT || missing_args == 0) {
+ 				/* This is a transfer error, but inhibit deletion
+diff -up rsync-3.1.2/rsync.h.orig rsync-3.1.2/rsync.h
+--- rsync-3.1.2/rsync.h.orig	2018-09-27 17:06:15.426700907 -0300
++++ rsync-3.1.2/rsync.h	2018-09-27 17:06:19.263578995 -0300
+@@ -856,6 +856,10 @@ struct map_struct {
+ 	int status;		/* first errno from read errors		*/
+ };
+ 
++#define NAME_IS_FILE		(0)    /* filter name as a file */
++#define NAME_IS_DIR		(1<<0) /* filter name as a dir */
++#define NAME_IS_XATTR		(1<<2) /* filter name as an xattr */
++
+ #define FILTRULE_WILD		(1<<0) /* pattern has '*', '[', and/or '?' */
+ #define FILTRULE_WILD2		(1<<1) /* pattern has '**' */
+ #define FILTRULE_WILD2_PREFIX	(1<<2) /* pattern starts with "**" */
+@@ -876,6 +880,7 @@ struct map_struct {
+ #define FILTRULE_RECEIVER_SIDE	(1<<17)/* rule applies to the receiving side */
+ #define FILTRULE_CLEAR_LIST	(1<<18)/* this item is the "!" token */
+ #define FILTRULE_PERISHABLE	(1<<19)/* perishable if parent dir goes away */
++#define FILTRULE_XATTR		(1<<20)/* rule only applies to xattr names */
+ 
+ #define FILTRULES_SIDES (FILTRULE_SENDER_SIDE | FILTRULE_RECEIVER_SIDE)
+ 
+diff -up rsync-3.1.2/rsync.yo.orig rsync-3.1.2/rsync.yo
+--- rsync-3.1.2/rsync.yo.orig	2018-09-27 17:06:15.433700685 -0300
++++ rsync-3.1.2/rsync.yo	2018-09-27 17:06:19.266578899 -0300
+@@ -1109,9 +1109,27 @@ super-user copies all namespaces except
+ the user.* namespace.  To be able to backup and restore non-user namespaces as
+ a normal user, see the bf(--fake-super) option.
+ 
+-Note that this option does not copy rsyncs special xattr values (e.g. those
+-used by bf(--fake-super)) unless you repeat the option (e.g. -XX).  This
+-"copy all xattrs" mode cannot be used with bf(--fake-super).
++The above name filtering can be overridden by using one or more filter options
++with the bf(x) modifier. When you specify an xattr-affecting filter rule, rsync
++requires that you do your own system/user filtering, as well as any additional
++filtering for what xattr names are copied and what names are allowed to be
++deleted.  For example, to skip the system namespace, you could specify:
++
++quote(--filter='-x system.*')
++
++To skip all namespaces except the user namespace, you could specify a
++negated-user match:
++
++quote(--filter='-x! user.*')
++
++To prevent any attributes from being deleted, you could specify a receiver-only
++rule that excludes all names:
++
++quote(--filter='-xr *')
++
++Note that the bf(-X) option does not copy rsync's special xattr values (e.g.
++those used by bf(--fake-super)) unless you repeat the option (e.g. -XX).
++This "copy all xattrs" mode cannot be used with bf(--fake-super).
+ 
+ dit(bf(--chmod)) This option tells rsync to apply one or more
+ comma-separated "chmod" modes to the permission of the files in the
+@@ -2890,6 +2908,10 @@ itemization(
+   option's default rules that exclude things like "CVS" and "*.o" are
+   marked as perishable, and will not prevent a directory that was removed
+   on the source from being deleted on the destination.
++  it() An bf(x) indicates that a rule affects xattr names in xattr copy/delete
++  operations (and is thus ignored when matching file/dir names). If no
++  xattr-matching rules are specified, a default xattr filtering rule is
++  used (see the bf(--xattrs) option).
+ )
+ 
+ manpagesection(MERGE-FILE FILTER RULES)
+diff -up rsync-3.1.2/testsuite/xattrs.test.orig rsync-3.1.2/testsuite/xattrs.test
+--- rsync-3.1.2/testsuite/xattrs.test.orig	2018-09-27 17:06:15.439700494 -0300
++++ rsync-3.1.2/testsuite/xattrs.test	2018-09-27 17:06:19.267578867 -0300
+@@ -127,8 +127,10 @@ esac
+ 
+ xls $dirs $files >"$scratchdir/xattrs.txt"
+ 
++XFILT='-f-x_system.* -f-x_security.*'
++
+ # OK, let's try a simple xattr copy.
+-checkit "$RSYNC -avX $dashH --super . '$chkdir/'" "$fromdir" "$chkdir"
++checkit "$RSYNC -avX $XFILT $dashH --super . '$chkdir/'" "$fromdir" "$chkdir"
+ 
+ cd "$chkdir"
+ xls $dirs $files | diff $diffopt "$scratchdir/xattrs.txt" -
+@@ -142,7 +144,7 @@ if [ "$dashH" ]; then
+     done
+ fi
+ 
+-checkit "$RSYNC -aiX $dashH --super $altDest=../chk . ../to" "$fromdir" "$todir"
++checkit "$RSYNC -aiX $XFILT $dashH --super $altDest=../chk . ../to" "$fromdir" "$todir"
+ 
+ cd "$todir"
+ xls $dirs $files | diff $diffopt "$scratchdir/xattrs.txt" -
+@@ -156,7 +158,7 @@ xset user.nice 'this is nice, but differ
+ 
+ xls $dirs $files >"$scratchdir/xattrs.txt"
+ 
+-checkit "$RSYNC -aiX $dashH --fake-super --link-dest=../chk . ../to" "$chkdir" "$todir"
++checkit "$RSYNC -aiX $XFILT $dashH --fake-super --link-dest=../chk . ../to" "$chkdir" "$todir"
+ 
+ cd "$todir"
+ xls $dirs $files | diff $diffopt "$scratchdir/xattrs.txt" -
+@@ -186,7 +188,7 @@ cd "$fromdir"
+ rm -rf "$todir"
+ 
+ # When run by a non-root tester, this checks if no-user-perm files/dirs can be copied.
+-checkit "$RSYNC -aiX $dashH --fake-super --chmod=a= . ../to" "$chkdir" "$todir" # 2>"$scratchdir/errors.txt"
++checkit "$RSYNC -aiX $XFILT $dashH --fake-super --chmod=a= . ../to" "$chkdir" "$todir" # 2>"$scratchdir/errors.txt"
+ 
+ cd "$todir"
+ xls $dirs $files | diff $diffopt "$scratchdir/xattrs.txt" -
+@@ -202,7 +204,7 @@ $RSYNC -aX file1 ../lnk/
+ 
+ xls file1 file2 >"$scratchdir/xattrs.txt"
+ 
+-checkit "$RSYNC -aiiX $dashH $altDest=../lnk . ../to" "$chkdir" "$todir"
++checkit "$RSYNC -aiiX $XFILT $dashH $altDest=../lnk . ../to" "$chkdir" "$todir"
+ 
+ [ "$dashH" ] && rm ../lnk/extra-link
+ 
+@@ -215,7 +217,7 @@ rm "$todir/file2"
+ echo extra >file1
+ $RSYNC -aX . ../chk/
+ 
+-checkit "$RSYNC -aiiX . ../to" "$chkdir" "$todir"
++checkit "$RSYNC -aiiX $XFILT . ../to" "$chkdir" "$todir"
+ 
+ cd "$todir"
+ xls file1 file2 | diff $diffopt "$scratchdir/xattrs.txt" -
+diff -up rsync-3.1.2/xattrs.c.orig rsync-3.1.2/xattrs.c
+--- rsync-3.1.2/xattrs.c.orig	2018-09-27 17:06:15.442700399 -0300
++++ rsync-3.1.2/xattrs.c	2018-09-27 17:07:50.900667319 -0300
+@@ -39,6 +39,7 @@ extern int preserve_devices;
+ extern int preserve_specials;
+ extern int checksum_seed;
+ extern int protocol_version;
++extern int saw_xattr_filter;
+ 
+ #define RSYNC_XAL_INITIAL 5
+ #define RSYNC_XAL_LIST_INITIAL 100
+@@ -234,11 +235,14 @@ static int rsync_xal_get(const char *fna
+ 		name_len = strlen(name) + 1;
+ 		list_len -= name_len;
+ 
++		if (saw_xattr_filter) {
++			if (name_is_excluded(name, NAME_IS_XATTR, ALL_FILTERS))
++				continue;
++		}
+ #ifdef HAVE_LINUX_XATTRS
+ 		/* We always ignore the system namespace, and non-root
+ 		 * ignores everything but the user namespace. */
+-		if (user_only ? !HAS_PREFIX(name, USER_PREFIX)
+-			      : HAS_PREFIX(name, SYSTEM_PREFIX))
++		else if (user_only ? !HAS_PREFIX(name, USER_PREFIX) : HAS_PREFIX(name, SYSTEM_PREFIX))
+ 			continue;
+ #endif
+ 
+@@ -337,11 +341,14 @@ int copy_xattrs(const char *source, cons
+ 		name_len = strlen(name) + 1;
+ 		list_len -= name_len;
+ 
++		if (saw_xattr_filter) {
++			if (name_is_excluded(name, NAME_IS_XATTR, ALL_FILTERS))
++				continue;
++		}
+ #ifdef HAVE_LINUX_XATTRS
+ 		/* We always ignore the system namespace, and non-root
+ 		 * ignores everything but the user namespace. */
+-		if (user_only ? !HAS_PREFIX(name, USER_PREFIX)
+-			      : HAS_PREFIX(name, SYSTEM_PREFIX))
++		else if (user_only ? !HAS_PREFIX(name, USER_PREFIX) : HAS_PREFIX(name, SYSTEM_PREFIX))
+ 			continue;
+ #endif
+ 
+@@ -735,10 +742,17 @@ void receive_xattr(int f, struct file_st
+ 			*ptr = XSTATE_ABBREV;
+ 			read_buf(f, ptr + 1, MAX_DIGEST_LEN);
+ 		}
++
++		if (saw_xattr_filter) {
++			if (name_is_excluded(name, NAME_IS_XATTR, ALL_FILTERS)) {
++				free(ptr);
++				continue;
++			}
++		}
+ #ifdef HAVE_LINUX_XATTRS
+ 		/* Non-root can only save the user namespace. */
+ 		if (am_root <= 0 && !HAS_PREFIX(name, USER_PREFIX)) {
+-			if (!am_root) {
++			if (!am_root && !saw_xattr_filter) {
+ 				free(ptr);
+ 				continue;
+ 			}
+@@ -899,11 +913,14 @@ static int rsync_xal_set(const char *fna
+ 		name_len = strlen(name) + 1;
+ 		list_len -= name_len;
+ 
++		if (saw_xattr_filter) {
++			if (name_is_excluded(name, NAME_IS_XATTR, ALL_FILTERS))
++				continue;
++		}
+ #ifdef HAVE_LINUX_XATTRS
+ 		/* We always ignore the system namespace, and non-root
+ 		 * ignores everything but the user namespace. */
+-		if (user_only ? !HAS_PREFIX(name, USER_PREFIX)
+-			      : HAS_PREFIX(name, SYSTEM_PREFIX))
++		else if (user_only ? !HAS_PREFIX(name, USER_PREFIX) : HAS_PREFIX(name, SYSTEM_PREFIX))
+ 			continue;
+ #endif
+ 		if (am_root < 0 && name_len > RPRE_LEN

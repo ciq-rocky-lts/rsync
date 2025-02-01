@@ -9,7 +9,7 @@
 Summary: A program for synchronizing files over a network
 Name: rsync
 Version: 3.1.3
-Release: 19%{?dist}.1
+Release: 19%{?dist}.4
 Group: Applications/Internet
 URL: http://rsync.samba.org/
 
@@ -42,6 +42,13 @@ Patch11: rsync-3.1.3-cve-2022-29154.patch
 Patch12: rsync-3.1.3-cve-2022-37434.patch
 Patch13: rsync-3.1.3-filtering-rules.patch
 Patch14: rsync-3.1.3-missing-xattr-filter.patch
+Patch15: rsync-3.1.3-CVE-2024-12085.patch
+Patch16: rsync-3.1.3-CVE-2024-12086.patch
+Patch17: rsync-3.1.3-CVE-2024-12087.patch
+Patch18: rsync-3.1.3-CVE-2024-12088.patch
+Patch19: rsync-3.1.3-CVE-2024-12747.patch
+Patch20: rsync-3.1.3-fix-h-flag.patch
+Patch21: rsync-3.1.3-fix-use-after-free.patch
 
 %description
 Rsync uses a reliable algorithm to bring remote and host files into
@@ -94,6 +101,13 @@ patch -p1 -i patches/copy-devices.diff
 %patch12 -p1 -b .cve-2022-37434
 %patch13 -p1 -b .filtering-rules
 %patch14 -p1 -b .xattr-filter
+%patch15 -p1 -b .cve-2024-12085
+%patch16 -p1 -b .cve-2024-12086
+%patch17 -p1 -b .cve-2024-12087
+%patch18 -p1 -b .cve-2024-12088
+%patch19 -p1 -b .cve-2024-12747
+%patch20 -p1 -b .fix-h-flag
+%patch21 -p1 -b .fix-use-after-free
 
 %build
 %configure
@@ -140,6 +154,23 @@ chmod -x support/*
 %systemd_postun_with_restart rsyncd.service
 
 %changelog
+* Thu Jan 16 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.3-19.4
+- Fix use-after-free in generator.c (Upstream PR #706)
+
+* Wed Jan 15 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.3-19.3
+- Fix -H flag after it was broken in the patch for CVE-2024-12087 (Upstream PR #705)
+
+* Tue Jan 14 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.3-19.2
+- CVE-2024-12085 - Info leak via uninitialized stack contents defeats
+  address space layout randomization.
+- CVE-2024-12086 - Server leaks arbitrary client files when a client is
+  connected to a malicious server.
+- CVE-2024-12087 - A server can make a client write files outside of the
+  destination directory using symbolic links
+- CVE-2024-12088 - A --safe-links bypass vulnerability can result in a
+  client pointing outside of the destination directory
+- CVE-2024-12747 - symlink race condition in sender
+
 * Wed Nov 02 2022 Michal Ruprich <mruprich@redhat.com> - 3.1.3-19.1
 - Resolves: #2139118 - rsync-daemon fail on 3.1.3
 

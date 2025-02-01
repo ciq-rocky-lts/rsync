@@ -8,7 +8,7 @@
 Summary: A program for synchronizing files over a network
 Name: rsync
 Version: 3.1.2
-Release: 13%{?prerelease}%{?dist}
+Release: 14%{?prerelease}%{?dist}
 Group: Applications/Internet
 URL: http://rsync.samba.org/
 
@@ -38,6 +38,11 @@ Patch9: rsync-3.1.2-cve-2022-29154.patch
 Patch10: rsync-3.1.2-filtering-rules.patch
 Patch11: rsync-3.1.2-cve-2018-25032.patch
 Patch12: rsync-3.1.2-cve-2022-37434.patch
+Patch13: rsync-3.1.2-cve-2024-12085.patch
+Patch14: rsync-3.1.2-cve-2024-12086.patch
+Patch15: rsync-3.1.2-cve-2024-12087.patch
+Patch16: rsync-3.1.2-cve-2024-12088.patch
+Patch17: rsync-3.1.2-cve-2024-12747.patch
 
 %description
 Rsync uses a reliable algorithm to bring remote and host files into
@@ -78,6 +83,11 @@ patch -p1 -i patches/copy-devices.diff
 %patch10 -p1 -b .filtering-rules
 %patch11 -p1 -b .cve-2018-25032
 %patch12 -p1 -b .cve-2022-37434
+%patch13 -p1 -b .cve-2024-12085
+%patch14 -p1 -b .cve-2024-12086
+%patch15 -p1 -b .cve-2024-12087
+%patch16 -p1 -b .cve-2024-12088
+%patch17 -p1 -b .cve-2024-12747
 
 %build
 rm -fr autom4te.cache
@@ -129,6 +139,17 @@ rm -rf $RPM_BUILD_ROOT
 %systemd_postun_with_restart rsyncd.service
 
 %changelog
+* Tue Jan 14 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.2-14
+- CVE-2024-12085 - Info leak via uninitialized stack contents defeats
+  address space layout randomization.
+- CVE-2024-12086 - Server leaks arbitrary client files when a client is
+  connected to a malicious server.
+- CVE-2024-12087 - A server can make a client write files outside of the
+  destination directory using symbolic links
+- CVE-2024-12088 - A --safe-links bypass vulnerability can result in a
+  client pointing outside of the destination directory
+- CVE-2024-12747 - symlink race condition in sender
+
 * Mon Nov 25 2024 Jonathan Dieter <jdieter@ciq.com> - 3.1.2-13
 - Fix CVE-2018-25032
 - Fix CVE-2022-37434

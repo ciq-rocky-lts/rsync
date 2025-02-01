@@ -8,7 +8,7 @@
 Summary: A program for synchronizing files over a network
 Name: rsync
 Version: 3.1.2
-Release: 14%{?prerelease}%{?dist}
+Release: 16%{?prerelease}%{?dist}
 Group: Applications/Internet
 URL: http://rsync.samba.org/
 
@@ -43,6 +43,8 @@ Patch14: rsync-3.1.2-cve-2024-12086.patch
 Patch15: rsync-3.1.2-cve-2024-12087.patch
 Patch16: rsync-3.1.2-cve-2024-12088.patch
 Patch17: rsync-3.1.2-cve-2024-12747.patch
+Patch18: rsync-3.1.2-fix-h-flag.patch
+Patch19: rsync-3.1.2-fix-use-after-free.patch
 
 %description
 Rsync uses a reliable algorithm to bring remote and host files into
@@ -88,6 +90,8 @@ patch -p1 -i patches/copy-devices.diff
 %patch15 -p1 -b .cve-2024-12087
 %patch16 -p1 -b .cve-2024-12088
 %patch17 -p1 -b .cve-2024-12747
+%patch18 -p1 -b .fix-h-flag
+%patch19 -p1 -b .fix-use-after-free
 
 %build
 rm -fr autom4te.cache
@@ -139,6 +143,12 @@ rm -rf $RPM_BUILD_ROOT
 %systemd_postun_with_restart rsyncd.service
 
 %changelog
+* Thu Jan 16 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.2-16
+- Fix use-after-free in generator.c (Upstream PR #706)
+
+* Wed Jan 15 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.2-15
+- Fix -H flag after it was broken in the patch for CVE-2024-12087 (Upstream PR #705)
+
 * Tue Jan 14 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.2-14
 - CVE-2024-12085 - Info leak via uninitialized stack contents defeats
   address space layout randomization.

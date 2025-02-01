@@ -8,7 +8,7 @@
 Summary: A program for synchronizing files over a network
 Name: rsync
 Version: 3.1.2
-Release: 14%{?prerelease}%{?dist}
+Release: 15%{?prerelease}%{?dist}
 Group: Applications/Internet
 URL: http://rsync.samba.org/
 
@@ -43,6 +43,7 @@ Patch14: rsync-3.1.2-cve-2024-12086.patch
 Patch15: rsync-3.1.2-cve-2024-12087.patch
 Patch16: rsync-3.1.2-cve-2024-12088.patch
 Patch17: rsync-3.1.2-cve-2024-12747.patch
+Patch18: rsync-3.1.2-fix-h-flag.patch
 
 %description
 Rsync uses a reliable algorithm to bring remote and host files into
@@ -88,6 +89,7 @@ patch -p1 -i patches/copy-devices.diff
 %patch15 -p1 -b .cve-2024-12087
 %patch16 -p1 -b .cve-2024-12088
 %patch17 -p1 -b .cve-2024-12747
+%patch18 -p1 -b .fix-h-flag
 
 %build
 rm -fr autom4te.cache
@@ -139,6 +141,9 @@ rm -rf $RPM_BUILD_ROOT
 %systemd_postun_with_restart rsyncd.service
 
 %changelog
+* Wed Jan 15 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.2-15
+- Fix -H flag after it was broken in the patch for CVE-2024-12087
+
 * Tue Jan 14 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.2-14
 - CVE-2024-12085 - Info leak via uninitialized stack contents defeats
   address space layout randomization.

@@ -9,7 +9,7 @@
 Summary: A program for synchronizing files over a network
 Name: rsync
 Version: 3.1.3
-Release: 19%{?dist}.4
+Release: 19%{?dist}.5
 Group: Applications/Internet
 URL: http://rsync.samba.org/
 
@@ -49,6 +49,7 @@ Patch18: rsync-3.1.3-CVE-2024-12088.patch
 Patch19: rsync-3.1.3-CVE-2024-12747.patch
 Patch20: rsync-3.1.3-fix-h-flag.patch
 Patch21: rsync-3.1.3-fix-use-after-free.patch
+Patch22: rsync-CVE-2016-9840.patch
 
 %description
 Rsync uses a reliable algorithm to bring remote and host files into
@@ -108,6 +109,7 @@ patch -p1 -i patches/copy-devices.diff
 %patch19 -p1 -b .cve-2024-12747
 %patch20 -p1 -b .fix-h-flag
 %patch21 -p1 -b .fix-use-after-free
+%patch22 -p1 -b .cve-2016-9840
 
 %build
 %configure
@@ -154,6 +156,9 @@ chmod -x support/*
 %systemd_postun_with_restart rsyncd.service
 
 %changelog
+* Mon Oct 13 2025 Pratham Patel <ppatel@ciq.com> - 3.1.3-19.5
+- Fix CVE-2016-9840
+
 * Thu Jan 16 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.3-19.4
 - Fix use-after-free in generator.c (Upstream PR #706)
 
@@ -691,7 +696,7 @@ chmod -x support/*
 * Wed Apr 07 1999 Bill Nottingham <notting@redhat.com>
 - update to 2.3.1.
 
-* Sun Mar 21 1999 Cristian Gafton <gafton@redhat.com> 
+* Sun Mar 21 1999 Cristian Gafton <gafton@redhat.com>
 - auto rebuild in the new build environment (release 2)
 
 * Tue Mar 16 1999 Jeff Johnson <jbj@redhat.com>
@@ -716,7 +721,7 @@ chmod -x support/*
 * Mon Aug 25 1997 John A. Martin <jam@jamux.com>
 - Built 1.6.3-2 after finding no rsync-1.6.3-1.src.rpm although there
   was an ftp://ftp.redhat.com/pub/contrib/alpha/rsync-1.6.3-1.alpha.rpm
-  showing no packager nor signature but giving 
+  showing no packager nor signature but giving
   "Source RPM: rsync-1.6.3-1.src.rpm".
 - Changes from 1.6.2-1 packaging: added '$RPM_OPT_FLAGS' to make, strip
   to '%%build', removed '%%prefix'.

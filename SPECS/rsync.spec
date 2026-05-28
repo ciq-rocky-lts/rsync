@@ -10,7 +10,7 @@
 Summary: A program for synchronizing files over a network
 Name: rsync
 Version: 3.2.3
-Release: 20%{?dist}.1
+Release:        20.1%{?dist}.1
 URL: https://rsync.samba.org/
 
 Source0: https://download.samba.org/pub/rsync/src/rsync-%{version}%{?prerelease}.tar.gz
@@ -43,7 +43,27 @@ Patch8: rsync-3.2.3-cve-2022-37434.patch
 Patch9: rsync-3.2.3-cve-2022-29154.patch
 Patch10: rsync-3.2.3-filtering-rules.patch
 Patch11: rsync-3.2.3-delay-updates.patch
-Patch12: rsync-3.2.3-cve-2024-12085.patch
+Patch12: rsync-3.2.3-CVE-2024-12085.patch
+Patch13: rsync-3.2.3-CVE-2024-12086.patch
+Patch14: rsync-3.2.3-CVE-2024-12087.patch
+Patch15: rsync-3.2.3-CVE-2024-12088.patch
+Patch16: rsync-3.2.3-CVE-2024-12747.patch
+# CVE-2026-43620 — upstream backport
+Patch17: rsync-3.2.3-cve-2026-43620.patch
+# CVE-2026-45232 — upstream backport
+Patch18: rsync-3.2.3-cve-2026-45232.patch
+# CVE-2026-43617 — upstream backport
+Patch19: rsync-3.2.3-cve-2026-43617.patch
+# CVE-2026-43618 — upstream backport
+Patch20: rsync-3.2.3-cve-2026-43618.patch
+# CVE-2025-10158 — upstream backport
+Patch21: rsync-3.2.3-cve-2025-10158.patch
+# CVE-2026-29518 — upstream backport
+Patch22: rsync-3.2.3-cve-2026-29518.patch
+# CVE-2026-43619 — upstream backport
+Patch23: rsync-3.2.3-cve-2026-43619.patch
+# CVE-2026-41035 — upstream rsync bb0a8118 (2-line fix, clean apply)
+Patch24: rsync-3.2.3-cve-2026-41035.patch
 
 %description
 Rsync uses a reliable algorithm to bring remote and host files into
@@ -90,6 +110,18 @@ patch -p1 -i patches/copy-devices.diff
 %patch10 -p1 -b .filtering-rules
 %patch11 -p1 -b .delay-updates
 %patch12 -p1 -b .cve-2024-12085
+%patch13 -p1 -b .cve-2024-12086
+%patch14 -p1 -b .cve-2024-12087
+%patch15 -p1 -b .cve-2024-12088
+%patch16 -p1 -b .cve-2024-12747
+%patch17 -p1 -b .cve-2026-43620
+%patch18 -p1 -b .cve-2026-45232
+%patch19 -p1 -b .cve-2026-43617
+%patch20 -p1 -b .cve-2026-43618
+%patch21 -p1 -b .cve-2025-10158
+%patch22 -p1 -b .cve-2026-29518
+%patch23 -p1 -b .cve-2026-43619
+%patch24 -p1 -b .cve-2026-41035
 
 %build
 %configure --disable-xxhash
@@ -136,8 +168,26 @@ install -D -m644 %{SOURCE6} $RPM_BUILD_ROOT/%{_unitdir}/rsyncd@.service
 %systemd_postun_with_restart rsyncd.service
 
 %changelog
-* Fri Jan 03 2025 Michal Ruprich <mruprich@redhat.com> - 3.2.3-20.1
-- Resolves: RHEL-72495 - Info Leak via Uninitialized Stack Contents
+* Wed May 20 2026 Jason Rodriguez <jrodriguez@ciq.com> - 3.2.3-20.1
+- Fix CVE-2026-43620
+- Fix CVE-2026-45232
+- Fix CVE-2026-43617
+- Fix CVE-2026-43618
+- Fix CVE-2025-10158
+- Fix CVE-2026-29518
+- Fix CVE-2026-43619
+- Fix CVE-2026-41035
+
+* Tue Jan 14 2025 Jonathan Dieter <jdieter@ciq.com> - 3.2.3-20.1
+- CVE-2024-12085 - Info leak via uninitialized stack contents defeats
+  address space layout randomization.
+- CVE-2024-12086 - Server leaks arbitrary client files when a client is
+  connected to a malicious server.
+- CVE-2024-12087 - A server can make a client write files outside of the
+  destination directory using symbolic links
+- CVE-2024-12088 - A --safe-links bypass vulnerability can result in a
+  client pointing outside of the destination directory
+- CVE-2024-12747 - symlink race condition in sender
 
 * Thu Oct 19 2023 Alex Iribarren <Alex.Iribarren@cern.ch> - 3.2.3-20
 - Resolves: RHEL-14228 - rsync regression with --delay-updates

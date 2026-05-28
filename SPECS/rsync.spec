@@ -9,7 +9,7 @@
 Summary: A program for synchronizing files over a network
 Name: rsync
 Version: 3.1.3
-Release: 19%{?dist}.5
+Release:        19.1%{?dist}.5
 Group: Applications/Internet
 URL: http://rsync.samba.org/
 
@@ -50,6 +50,22 @@ Patch19: rsync-3.1.3-CVE-2024-12747.patch
 Patch20: rsync-3.1.3-fix-h-flag.patch
 Patch21: rsync-3.1.3-fix-use-after-free.patch
 Patch22: rsync-CVE-2016-9840.patch
+# CVE-2026-43620 — upstream backport
+Patch23: rsync-3.1.3-cve-2026-43620.patch
+# CVE-2025-10158 — upstream backport
+Patch24: rsync-3.1.3-cve-2025-10158.patch
+# CVE-2026-45232 — upstream backport
+Patch25: rsync-3.1.3-cve-2026-45232.patch
+# CVE-2026-43617 — upstream backport
+Patch26: rsync-3.1.3-cve-2026-43617.patch
+# CVE-2026-43618 — upstream backport
+Patch27: rsync-3.1.3-cve-2026-43618.patch
+# CVE-2026-29518 — upstream backport
+Patch28: rsync-3.1.3-cve-2026-29518.patch
+# CVE-2026-43619 — upstream backport
+Patch29: rsync-3.1.3-cve-2026-43619.patch
+# CVE-2026-41035 — upstream rsync bb0a8118 (2-line fix, clean apply)
+Patch30: rsync-3.1.3-cve-2026-41035.patch
 
 %description
 Rsync uses a reliable algorithm to bring remote and host files into
@@ -110,6 +126,14 @@ patch -p1 -i patches/copy-devices.diff
 %patch20 -p1 -b .fix-h-flag
 %patch21 -p1 -b .fix-use-after-free
 %patch22 -p1 -b .cve-2016-9840
+%patch23 -p1 -b .cve-2026-43620
+%patch24 -p1 -b .cve-2025-10158
+%patch25 -p1 -b .cve-2026-45232
+%patch26 -p1 -b .cve-2026-43617
+%patch27 -p1 -b .cve-2026-43618
+%patch28 -p1 -b .cve-2026-29518
+%patch29 -p1 -b .cve-2026-43619
+%patch30 -p1 -b .cve-2026-41035
 
 %build
 %configure
@@ -156,6 +180,16 @@ chmod -x support/*
 %systemd_postun_with_restart rsyncd.service
 
 %changelog
+* Wed May 20 2026 Jason Rodriguez <jrodriguez@ciq.com> - 3.1.3-19.1
+- Fix CVE-2026-43620
+- Fix CVE-2025-10158
+- Fix CVE-2026-45232
+- Fix CVE-2026-43617
+- Fix CVE-2026-43618
+- Fix CVE-2026-29518
+- Fix CVE-2026-43619
+- Fix CVE-2026-41035
+
 * Mon Oct 13 2025 Pratham Patel <ppatel@ciq.com> - 3.1.3-19.5
 - Fix CVE-2016-9840
 

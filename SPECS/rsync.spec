@@ -8,7 +8,7 @@
 Summary: A program for synchronizing files over a network
 Name: rsync
 Version: 3.1.2
-Release: 16%{?prerelease}%{?dist}
+Release:        16%{?prerelease}.1%{?dist}
 Group: Applications/Internet
 URL: http://rsync.samba.org/
 
@@ -45,6 +45,20 @@ Patch16: rsync-3.1.2-cve-2024-12088.patch
 Patch17: rsync-3.1.2-cve-2024-12747.patch
 Patch18: rsync-3.1.2-fix-h-flag.patch
 Patch19: rsync-3.1.2-fix-use-after-free.patch
+# CVE-2025-10158 — upstream backport
+Patch20: rsync-3.1.3-cve-2025-10158.patch
+# CVE-2026-43620 — upstream backport
+Patch21: rsync-3.1.3-cve-2026-43620.patch
+# CVE-2026-45232 — upstream backport
+Patch22: rsync-3.1.3-cve-2026-45232.patch
+# CVE-2026-41035 — upstream backport
+Patch23: rsync-3.1.2-cve-2026-41035.patch
+# CVE-2026-43618 — upstream backport
+Patch24: rsync-3.1.2-cve-2026-43618.patch
+# CVE-2026-29518 — upstream backport
+Patch25: rsync-3.1.2-cve-2026-29518.patch
+# CVE-2026-43619 — upstream backport
+Patch26: rsync-3.1.2-cve-2026-43619.patch
 
 %description
 Rsync uses a reliable algorithm to bring remote and host files into
@@ -92,6 +106,13 @@ patch -p1 -i patches/copy-devices.diff
 %patch17 -p1 -b .cve-2024-12747
 %patch18 -p1 -b .fix-h-flag
 %patch19 -p1 -b .fix-use-after-free
+%patch20 -p1 -b .cve-2025-10158
+%patch21 -p1 -b .cve-2026-43620
+%patch22 -p1 -b .cve-2026-45232
+%patch23 -p1 -b .cve-2026-41035
+%patch24 -p1 -b .cve-2026-43618
+%patch25 -p1 -b .cve-2026-29518
+%patch26 -p1 -b .cve-2026-43619
 
 %build
 rm -fr autom4te.cache
@@ -143,6 +164,15 @@ rm -rf $RPM_BUILD_ROOT
 %systemd_postun_with_restart rsyncd.service
 
 %changelog
+* Thu May 28 2026 Jason Rodriguez <jrodriguez@ciq.com> - 3.1.2-16.1
+- Fix CVE-2025-10158
+- Fix CVE-2026-43620
+- Fix CVE-2026-45232
+- Fix CVE-2026-41035
+- Fix CVE-2026-43618
+- Fix CVE-2026-29518
+- Fix CVE-2026-43619
+
 * Thu Jan 16 2025 Jonathan Dieter <jdieter@ciq.com> - 3.1.2-16
 - Fix use-after-free in generator.c (Upstream PR #706)
 
